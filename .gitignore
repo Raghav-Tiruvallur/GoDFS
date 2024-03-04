@@ -1,0 +1,2 @@
+proto/*.pb.go
+go-dfs
