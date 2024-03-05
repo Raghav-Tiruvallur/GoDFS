@@ -6,20 +6,19 @@ import "google/protobuf/empty.proto";
 
 package proto;
 
-service GODFS{
+service NamenodeService{
     rpc getAvailableDatanodes (google.protobuf.Empty) returns (freeDataNodes);
-    rpc sendDataToDataNodes(clientToDataNodeRequest) returns (Error);
+    rpc register_DataNode(datanodeData) returns (status);
 }
 
 message freeDataNodes{
     repeated string dataNodeIDs = 1;
 }
 
-message clientToDataNodeRequest{
-    string blockID = 1;
-    bytes content = 2;
+message datanodeData{
+    string datanodeID = 1;
 }
 
-message Error{
-    string err = 1;
+message status{
+    string statusMessage = 1;
 }

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+package proto;
+
+
+service DatanodeService{
+    rpc sendDataToDataNodes(clientToDataNodeRequest) returns (Error);
+}
+
+message clientToDataNodeRequest{
+    string blockID = 1;
+    bytes content = 2;
+}
+
+message Error{
+    string err = 1;
+}

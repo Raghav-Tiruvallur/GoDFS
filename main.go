@@ -6,17 +6,18 @@ import (
 	"os"
 
 	"github.com/Raghav-Tiruvallur/GoDFS/client"
+	"github.com/Raghav-Tiruvallur/GoDFS/datanode"
 	"github.com/Raghav-Tiruvallur/GoDFS/namenode"
 )
 
 func main() {
 
-	// dataNodeCommand := flag.NewFlagSet("datanode", flag.ExitOnError)
+	dataNodeCommand := flag.NewFlagSet("datanode", flag.ExitOnError)
 	nameNodeCommand := flag.NewFlagSet("namenode", flag.ExitOnError)
 	clientCommand := flag.NewFlagSet("client", flag.ExitOnError)
 
-	// dataNodePortPtr := dataNodeCommand.Int("port", 8081, "Port of datanode")
-	// dataNodeLocationPtr := dataNodeCommand.String("location", ".", "Location of files to be stored by datanode")
+	dataNodePortPtr := dataNodeCommand.String("port", "8081", "Port of datanode")
+	dataNodeLocationPtr := dataNodeCommand.String("location", ".", "Location of files to be stored by datanode")
 
 	nameNodePortPtr := nameNodeCommand.String("port", "8080", "Port of namenode")
 	nameNodeBlockSizePtr := nameNodeCommand.Int64("block-size", 32, "Block size to store")
@@ -40,6 +41,13 @@ func main() {
 		_ = nameNodeCommand.Parse(os.Args[2:])
 		namenodePtr := &namenode.NameNodeData{}
 		namenodePtr.InitializeNameNode(*nameNodePortPtr, *nameNodeBlockSizePtr)
+	case "datanode":
+		_ = dataNodeCommand.Parse(os.Args[2:])
+		datanodePtr := &datanode.DataNode{}
+		datanodePtr.InitializeDataNode(*dataNodePortPtr, *dataNodeLocationPtr)
+		conn := datanodePtr.ConnectToNameNode(*nameNodePortPtr, "localhost")
+		datanodePtr.RegisterNode(conn)
+		datanodePtr.StartServer(*dataNodePortPtr)
 	case "client":
 		_ = clientCommand.Parse(os.Args[2:])
 		if *clientOperationPtr == "write" {
