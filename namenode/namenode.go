@@ -65,6 +65,6 @@ func (nameNode *NameNodeData) GetAvailableDatanodes(ctx context.Context, empty *
 		}
 	}
 
-	return &namenode.FreeDataNodes{DataNodeIDs: availableDataNodes}, nil
+	return &namenode.FreeDataNodes{DataNodeIDs: availableDataNodes[:nameNode.ReplicationFactor]}, nil
 
 }

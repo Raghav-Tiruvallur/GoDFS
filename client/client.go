@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	datanodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/datanode"
 	namenodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/namenode"
 	"github.com/Raghav-Tiruvallur/GoDFS/utils"
 	"github.com/google/uuid"
@@ -30,6 +31,13 @@ func (client *ClientData) ConnectToNameNode(port string, host string) *grpc.Clie
 	conn, _ := grpc.Dial(connectionString, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	return conn
 
+}
+
+func GetDataNodeStub(port string) datanodeService.DatanodeServiceClient {
+	connectionString := net.JoinHostPort("localhost", port)
+	conn, _ := grpc.Dial(connectionString, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dataNodeClient := datanodeService.NewDatanodeServiceClient(conn)
+	return dataNodeClient
 }
 
 func (client *ClientData) GetAvailableDatanodes(conn *grpc.ClientConn) (*namenodeService.FreeDataNodes, error) {
@@ -67,7 +75,7 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 	utils.ErrorHandler(err)
 
 	for i := 0; i < numberOfBlocks; i++ {
-		_, err := fileHandler.Read(buffer)
+		n, err := fileHandler.Read(buffer)
 		if err == io.EOF {
 			break
 		}
@@ -75,12 +83,14 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 		blockID := uuid.New().String()
 		freeDataNodes, err := client.GetAvailableDatanodes(conn)
 		utils.ErrorHandler(err)
-		utils.ErrorHandler(err)
 		log.Println(blockID)
 		for _, datanode := range freeDataNodes.DataNodeIDs {
-			// clientDataNodeRequest := goDFS.ClientToDataNodeRequest{BlockID: blockID, Content: buffer[:n]}
-			// client.SendDataToDataNodes(context.Background(), &clientDataNodeRequest)
-			log.Println(datanode.DatanodeID, datanode.DatanodePort)
+			clientDataNodeRequest := &datanodeService.ClientToDataNodeRequest{BlockID: blockID, Content: buffer[:n]}
+			datanodeClient := GetDataNodeStub(datanode.DatanodePort)
+			log.Printf("Port = %s\n", datanode.DatanodePort)
+			status, _ := datanodeClient.SendDataToDataNodes(context.Background(), clientDataNodeRequest)
+			log.Println(status.Message)
+			log.Printf("%s\n", datanode.DatanodeID)
 		}
 	}
 

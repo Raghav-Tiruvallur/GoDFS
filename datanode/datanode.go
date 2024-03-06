@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"os"
 	"path/filepath"
 
 	datanodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/datanode"
@@ -26,6 +27,29 @@ func (datanode *DataNode) ConnectToNameNode(port string, host string) *grpc.Clie
 	conn, _ := grpc.Dial(connectionString, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	return conn
 
+}
+
+func CreateDirectory(path string) {
+
+	_, err := os.Stat(path)
+
+	if os.IsNotExist(err) {
+
+		pathCreationError := os.MkdirAll(path, os.ModePerm)
+		utils.ErrorHandler(pathCreationError)
+	} else {
+		utils.ErrorHandler(err)
+	}
+}
+
+func (datanode *DataNode) SendDataToDataNodes(ctx context.Context, clientToDataNodeRequest *datanodeService.ClientToDataNodeRequest) (*datanodeService.Status, error) {
+
+	log.Printf("Hello\n")
+	CreateDirectory(datanode.DataNodeLocation)
+	blockFilePath := filepath.Join(datanode.DataNodeLocation, clientToDataNodeRequest.BlockID+".txt")
+	err := os.WriteFile(blockFilePath, clientToDataNodeRequest.Content, os.ModePerm)
+	utils.ErrorHandler(err)
+	return &datanodeService.Status{Message: "Data saved sucessfully"}, nil
 }
 
 func (datanode *DataNode) RegisterNode(conn *grpc.ClientConn, port string) {

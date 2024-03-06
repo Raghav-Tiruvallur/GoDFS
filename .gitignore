@@ -1,2 +1,3 @@
 proto/*/*.pb.go
 go-dfs
+datanode-files/
