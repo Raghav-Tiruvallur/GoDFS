@@ -14,12 +14,12 @@ run:
 run-namenode:
 	make run
 	./$(BINARY_NAME) namenode -port 8080 -block-size 32
-run-client:
+run-client-write:
 	make run
 	./$(BINARY_NAME) client -namenode 8080 -operation write -source-path . -filename test.txt
-run-datanode:
+run-datanodes:
 	make run
-	./$(BINARY_NAME) datanode -port 8081 -location datanode-files
+	sh scripts/run_datanodes.sh
 deps:
 	$(GOGET) -v ./..
 

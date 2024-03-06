@@ -2,21 +2,23 @@ package namenode
 
 import (
 	"context"
-	"io"
 	"log"
 	"net"
-	"os"
-	"path/filepath"
 
 	namenode "github.com/Raghav-Tiruvallur/GoDFS/proto/namenode"
-	"github.com/Raghav-Tiruvallur/GoDFS/utils"
-	"github.com/google/uuid"
+	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 )
 
+type DataNodeMetadata struct {
+	Port   string
+	Status string
+}
 type NameNodeData struct {
-	BlockSize              int64
-	DataNodeToBlockMapping map[string][]string
+	BlockSize                 int64
+	DataNodeToBlockMapping    map[string][]string
+	ReplicationFactor         int64
+	DataNodeToMetadataMapping map[string]DataNodeMetadata
 	namenode.UnimplementedNamenodeServiceServer
 }
 
@@ -24,6 +26,8 @@ func (nameNode *NameNodeData) InitializeNameNode(port string, blockSize int64) {
 
 	nameNode.BlockSize = blockSize
 	nameNode.DataNodeToBlockMapping = make(map[string][]string)
+	nameNode.DataNodeToMetadataMapping = make(map[string]DataNodeMetadata)
+	nameNode.ReplicationFactor = 3
 	server := grpc.NewServer()
 	namenode.RegisterNamenodeServiceServer(server, nameNode)
 	address := ":" + port
@@ -43,61 +47,24 @@ func (nameNode *NameNodeData) Register_DataNode(ctx context.Context, datanodeDat
 	_, ok := nameNode.DataNodeToBlockMapping[datanodeData.DatanodeID]
 	if !ok {
 		nameNode.DataNodeToBlockMapping[datanodeData.DatanodeID] = make([]string, 0)
+		dnmetadata := DataNodeMetadata{Port: datanodeData.DatanodePort, Status: "Available"}
+		nameNode.DataNodeToMetadataMapping[datanodeData.DatanodeID] = dnmetadata
+		return &namenode.Status{StatusMessage: "Registered"}, nil
 	}
-
-	return &namenode.Status{StatusMessage: "Registered"}, nil
-}
-
-func (namenode *NameNodeData) WriteFile(sourcePath string, fileName string) {
-
-	filePath := filepath.Join(sourcePath, fileName)
-
-	//read from file
-	//get block size from namenode
-	blockSize := int(3 * 1024)
-	fileSizeHandler, err := os.Stat(filePath)
-
-	utils.ErrorHandler(err)
-
-	fileSize := int(fileSizeHandler.Size())
-
-	numberOfBlocks := fileSize / blockSize
-
-	if fileSize%blockSize > 0 {
-		numberOfBlocks++
-	}
-
-	buffer := make([]byte, blockSize)
-
-	fileHandler, err := os.Open(filePath)
-
-	utils.ErrorHandler(err)
-
-	for i := 0; i < numberOfBlocks; i++ {
-		_, err := fileHandler.Read(buffer)
-		if err == io.EOF {
-			break
-		}
-		utils.ErrorHandler(err)
-		blockID := uuid.New().String()
-		//freeDataNodes, err := namenode.GetAvailableDatanodes(context.Background(), &emptypb.Empty{})
-		freeDataNodes := [4]string{"1", "2", "3", "4"}
-		utils.ErrorHandler(err)
-		log.Println(blockID)
-		for _, datanode := range freeDataNodes {
-			// clientDataNodeRequest := goDFS.ClientToDataNodeRequest{BlockID: blockID, Content: buffer[:n]}
-			// client.SendDataToDataNodes(context.Background(), &clientDataNodeRequest)
-			log.Println(datanode)
-		}
-	}
-
-	//get available datanodes from namenode
-	//break the file into many blocks
-	//send each block to a datanode
-	//datanode then takes care of replicating it across other datanode
+	return &namenode.Status{StatusMessage: "Exists"}, nil
 
 }
 
-// func (namenode *NameNodeData) GetAvailableDatanodes(ctx context.Context, empty *emptypb.Empty) {
+func (nameNode *NameNodeData) GetAvailableDatanodes(ctx context.Context, empty *empty.Empty) (freeNodes *namenode.FreeDataNodes, err error) {
+	availableDataNodes := make([]*namenode.DatanodeData, 0)
 
-// }
+	for dataNodeID, datanodeMetadata := range nameNode.DataNodeToMetadataMapping {
+		if datanodeMetadata.Status == "Available" {
+			datanodeData := &namenode.DatanodeData{DatanodeID: dataNodeID, DatanodePort: nameNode.DataNodeToMetadataMapping[dataNodeID].Port}
+			availableDataNodes = append(availableDataNodes, datanodeData)
+		}
+	}
+
+	return &namenode.FreeDataNodes{DataNodeIDs: availableDataNodes}, nil
+
+}

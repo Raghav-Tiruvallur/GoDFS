@@ -46,15 +46,15 @@ func main() {
 		datanodePtr := &datanode.DataNode{}
 		datanodePtr.InitializeDataNode(*dataNodePortPtr, *dataNodeLocationPtr)
 		conn := datanodePtr.ConnectToNameNode(*nameNodePortPtr, "localhost")
-		datanodePtr.RegisterNode(conn)
+		datanodePtr.RegisterNode(conn, *dataNodePortPtr)
 		datanodePtr.StartServer(*dataNodePortPtr)
 	case "client":
 		_ = clientCommand.Parse(os.Args[2:])
 		if *clientOperationPtr == "write" {
 			clientPtr := &client.ClientData{}
-			namenodePtr := &namenode.NameNodeData{}
 			clientPtr.InitializeClient(*clientNameNodePortPtr)
-			namenodePtr.WriteFile(*clientSourcePathPtr, *clientFilenamePtr)
+			conn := clientPtr.ConnectToNameNode(*nameNodePortPtr, "localhost")
+			clientPtr.WriteFile(conn, *clientSourcePathPtr, *clientFilenamePtr)
 		}
 
 	}

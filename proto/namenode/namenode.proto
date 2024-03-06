@@ -12,11 +12,12 @@ service NamenodeService{
 }
 
 message freeDataNodes{
-    repeated string dataNodeIDs = 1;
+    repeated datanodeData dataNodeIDs = 1;
 }
 
 message datanodeData{
     string datanodeID = 1;
+    string datanodePort = 2;
 }
 
 message status{

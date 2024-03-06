@@ -28,9 +28,9 @@ func (datanode *DataNode) ConnectToNameNode(port string, host string) *grpc.Clie
 
 }
 
-func (datanode *DataNode) RegisterNode(conn *grpc.ClientConn) {
+func (datanode *DataNode) RegisterNode(conn *grpc.ClientConn, port string) {
 	client := namenodeService.NewNamenodeServiceClient(conn)
-	status, err := client.Register_DataNode(context.Background(), &namenodeService.DatanodeData{DatanodeID: datanode.ID})
+	status, err := client.Register_DataNode(context.Background(), &namenodeService.DatanodeData{DatanodeID: datanode.ID, DatanodePort: port})
 	log.Printf("%s\n", status.StatusMessage)
 	utils.ErrorHandler(err)
 }
