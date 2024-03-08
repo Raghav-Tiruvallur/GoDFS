@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"sort"
 
 	namenode "github.com/Raghav-Tiruvallur/GoDFS/proto/namenode"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -20,6 +21,11 @@ type NameNodeData struct {
 	ReplicationFactor         int64
 	DataNodeToMetadataMapping map[string]DataNodeMetadata
 	namenode.UnimplementedNamenodeServiceServer
+}
+
+type DataNodeBlockCount struct {
+	DataNodeData *namenode.DatanodeData
+	BlockCount   int64
 }
 
 func (nameNode *NameNodeData) InitializeNameNode(port string, blockSize int64) {
@@ -56,15 +62,24 @@ func (nameNode *NameNodeData) Register_DataNode(ctx context.Context, datanodeDat
 }
 
 func (nameNode *NameNodeData) GetAvailableDatanodes(ctx context.Context, empty *empty.Empty) (freeNodes *namenode.FreeDataNodes, err error) {
-	availableDataNodes := make([]*namenode.DatanodeData, 0)
-
+	availableDataNodes := make([]*DataNodeBlockCount, 0)
+	freeDataNodes := make([]*namenode.DatanodeData, 0)
 	for dataNodeID, datanodeMetadata := range nameNode.DataNodeToMetadataMapping {
 		if datanodeMetadata.Status == "Available" {
 			datanodeData := &namenode.DatanodeData{DatanodeID: dataNodeID, DatanodePort: nameNode.DataNodeToMetadataMapping[dataNodeID].Port}
-			availableDataNodes = append(availableDataNodes, datanodeData)
+			blockCount := int64(len(nameNode.DataNodeToBlockMapping[dataNodeID]))
+			dataNodeBlockCount := &DataNodeBlockCount{DataNodeData: datanodeData, BlockCount: blockCount}
+			availableDataNodes = append(availableDataNodes, dataNodeBlockCount)
 		}
 	}
 
-	return &namenode.FreeDataNodes{DataNodeIDs: availableDataNodes[:nameNode.ReplicationFactor]}, nil
+	sort.SliceStable(availableDataNodes, func(i, j int) bool {
+		return availableDataNodes[i].BlockCount < availableDataNodes[j].BlockCount
+	})
+	for i := 0; i < int(nameNode.ReplicationFactor); i++ {
+		freeDataNode := &namenode.DatanodeData{DatanodeID: availableDataNodes[i].DataNodeData.DatanodeID, DatanodePort: availableDataNodes[i].DataNodeData.DatanodePort}
+		freeDataNodes = append(freeDataNodes, freeDataNode)
+	}
+	return &namenode.FreeDataNodes{DataNodeIDs: freeDataNodes[:nameNode.ReplicationFactor]}, nil
 
 }

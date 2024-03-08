@@ -44,7 +44,6 @@ func CreateDirectory(path string) {
 
 func (datanode *DataNode) SendDataToDataNodes(ctx context.Context, clientToDataNodeRequest *datanodeService.ClientToDataNodeRequest) (*datanodeService.Status, error) {
 
-	log.Printf("Hello\n")
 	CreateDirectory(datanode.DataNodeLocation)
 	blockFilePath := filepath.Join(datanode.DataNodeLocation, clientToDataNodeRequest.BlockID+".txt")
 	err := os.WriteFile(blockFilePath, clientToDataNodeRequest.Content, os.ModePerm)
