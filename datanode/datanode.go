@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	datanodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/datanode"
 	namenodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/namenode"
@@ -18,6 +19,7 @@ import (
 type DataNode struct {
 	ID               string
 	DataNodeLocation string
+	Blocks           []string
 	datanodeService.UnimplementedDatanodeServiceServer
 }
 
@@ -47,8 +49,9 @@ func (datanode *DataNode) SendDataToDataNodes(ctx context.Context, clientToDataN
 	CreateDirectory(datanode.DataNodeLocation)
 	blockFilePath := filepath.Join(datanode.DataNodeLocation, clientToDataNodeRequest.BlockID+".txt")
 	err := os.WriteFile(blockFilePath, clientToDataNodeRequest.Content, os.ModePerm)
+	datanode.Blocks = append(datanode.Blocks, clientToDataNodeRequest.BlockID)
 	utils.ErrorHandler(err)
-	return &datanodeService.Status{Message: "Data saved sucessfully"}, nil
+	return &datanodeService.Status{Message: "Data saved successfully"}, nil
 }
 
 func (datanode *DataNode) RegisterNode(conn *grpc.ClientConn, port string) {
@@ -58,11 +61,32 @@ func (datanode *DataNode) RegisterNode(conn *grpc.ClientConn, port string) {
 	utils.ErrorHandler(err)
 }
 
+func (datanode *DataNode) SendBlockReport(conn *grpc.ClientConn) {
+
+	nameNodeClient := namenodeService.NewNamenodeServiceClient(conn)
+	datanodeBlockData := &namenodeService.DatanodeBlockData{DatanodeID: datanode.ID, Blocks: datanode.Blocks}
+	status, err := nameNodeClient.BlockReport(context.Background(), datanodeBlockData)
+	utils.ErrorHandler(err)
+	log.Println(status.StatusMessage)
+}
 func (datanode *DataNode) InitializeDataNode(port string, location string) {
 	datanode.ID = uuid.New().String()
 	datanode.DataNodeLocation = filepath.Join(location, datanode.ID)
 }
 
+func (datanode *DataNode) SendBlockReportToNameNode(conn *grpc.ClientConn) {
+
+	interval := 10 * time.Second
+
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-ticker.C:
+			datanode.SendBlockReport(conn)
+		}
+	}
+
+}
 func (datanode *DataNode) StartServer(port string) {
 	server := grpc.NewServer()
 	datanodeService.RegisterDatanodeServiceServer(server, datanode)

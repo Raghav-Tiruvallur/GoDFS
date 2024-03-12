@@ -27,6 +27,7 @@ func main() {
 	clientOperationPtr := clientCommand.String("operation", "", "Operation to perform")
 	clientSourcePathPtr := clientCommand.String("source-path", ".", "Source path of the file")
 	clientFilenamePtr := clientCommand.String("filename", "", "File name")
+	//clientReadFilenamePtr := clientCommand.String("read-file", "", "File name to read")
 
 	if len(os.Args) < 2 {
 		log.Println("sub-command is required")
@@ -47,15 +48,19 @@ func main() {
 		datanodePtr.InitializeDataNode(*dataNodePortPtr, *dataNodeLocationPtr)
 		conn := datanodePtr.ConnectToNameNode(*nameNodePortPtr, "localhost")
 		datanodePtr.RegisterNode(conn, *dataNodePortPtr)
+		go datanodePtr.SendBlockReportToNameNode(conn)
 		datanodePtr.StartServer(*dataNodePortPtr)
 	case "client":
 		_ = clientCommand.Parse(os.Args[2:])
+		clientPtr := &client.ClientData{}
+		clientPtr.InitializeClient(*clientNameNodePortPtr)
+		conn := clientPtr.ConnectToNameNode()
 		if *clientOperationPtr == "write" {
-			clientPtr := &client.ClientData{}
-			clientPtr.InitializeClient(*clientNameNodePortPtr)
-			conn := clientPtr.ConnectToNameNode(*nameNodePortPtr, "localhost")
 			clientPtr.WriteFile(conn, *clientSourcePathPtr, *clientFilenamePtr)
 		}
+		// if *clientOperationPtr == "read" {
+		// 	clientPtr.ReadFile(conn, *clientReadFilenamePtr)
+		// }
 
 	}
 

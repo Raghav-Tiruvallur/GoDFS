@@ -25,9 +25,9 @@ type ClientData struct {
 func (client *ClientData) InitializeClient(nameNodePort string) {
 	client.NameNodePort = nameNodePort
 }
-func (client *ClientData) ConnectToNameNode(port string, host string) *grpc.ClientConn {
+func (client *ClientData) ConnectToNameNode() *grpc.ClientConn {
 
-	connectionString := net.JoinHostPort(host, port)
+	connectionString := net.JoinHostPort("localhost", client.NameNodePort)
 	conn, _ := grpc.Dial(connectionString, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	return conn
 
@@ -40,11 +40,17 @@ func GetDataNodeStub(port string) datanodeService.DatanodeServiceClient {
 	return dataNodeClient
 }
 
+func (client *ClientData) GetNameNodeStub() namenodeService.NamenodeServiceClient {
+	connectionString := net.JoinHostPort("localhost", client.NameNodePort)
+	conn, _ := grpc.Dial(connectionString, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	nameNodeClient := namenodeService.NewNamenodeServiceClient(conn)
+	return nameNodeClient
+}
+
 func (client *ClientData) GetAvailableDatanodes(conn *grpc.ClientConn) (*namenodeService.FreeDataNodes, error) {
 
 	namenodeClient := namenodeService.NewNamenodeServiceClient(conn)
 	freeDataNodes, err := namenodeClient.GetAvailableDatanodes(context.Background(), &emptypb.Empty{})
-	//log.Printf("%s\n", status.StatusMessage)
 	return freeDataNodes, err
 
 }
@@ -53,8 +59,6 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 
 	filePath := filepath.Join(sourcePath, fileName)
 
-	//read from file
-	//get block size from namenode
 	blockSize := int(3 * 1024)
 	fileSizeHandler, err := os.Stat(filePath)
 
@@ -94,9 +98,11 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 		}
 	}
 
-	//get available datanodes from namenode
-	//break the file into many blocks
-	//send each block to a datanode
-	//datanode then takes care of replicating it across other datanode
-
 }
+
+// func (client *ClientData) ReadFile(conn *grpc.ClientConn, fileName string) {
+
+// 	nameNodeStub := client.GetNameNodeStub()
+// 	fileData := &namenodeService.FileData{FileName: fileName}
+// 	dataNodes, err := nameNodeStub.GetDataNodesForFile(context.Background(), fileData)
+// }

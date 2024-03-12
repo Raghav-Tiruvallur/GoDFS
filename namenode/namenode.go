@@ -20,6 +20,7 @@ type NameNodeData struct {
 	DataNodeToBlockMapping    map[string][]string
 	ReplicationFactor         int64
 	DataNodeToMetadataMapping map[string]DataNodeMetadata
+	FileToBlockMapping        map[string][]string
 	namenode.UnimplementedNamenodeServiceServer
 }
 
@@ -83,3 +84,22 @@ func (nameNode *NameNodeData) GetAvailableDatanodes(ctx context.Context, empty *
 	return &namenode.FreeDataNodes{DataNodeIDs: freeDataNodes[:nameNode.ReplicationFactor]}, nil
 
 }
+
+func (nameNode *NameNodeData) BlockReport(ctx context.Context, dataNodeBlockData *namenode.DatanodeBlockData) (status *namenode.Status, err error) {
+
+	nameNode.DataNodeToBlockMapping[dataNodeBlockData.DatanodeID] = dataNodeBlockData.Blocks
+	return &namenode.Status{StatusMessage: "Block Report Recieved"}, nil
+}
+
+// func (nameNode *NameNodeData) GetDataNodesForFile(ctx context.Context, fileData *namenode.FileData) (*namenode.FreeDataNodes, error) {
+
+// 	blocks , ok := nameNode.FileToBlockMapping[fileData.FileName]
+// 	dataNodes := make([]namenode.DatanodeData,0)
+// 	if !ok {
+// 		return nil, errors.New("File does not exist")
+// 	}
+// 	for _,block := range blocks{
+// 		dataNode = &namenode.DatanodeData{}
+// 	}
+
+// }

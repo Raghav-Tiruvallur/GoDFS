@@ -9,6 +9,8 @@ package proto;
 service NamenodeService{
     rpc getAvailableDatanodes (google.protobuf.Empty) returns (freeDataNodes);
     rpc register_DataNode(datanodeData) returns (status);
+    rpc getDataNodesForFile (fileData) returns (freeDataNodes);
+    rpc BlockReport (datanodeBlockData) returns (status);
 }
 
 message freeDataNodes{
@@ -22,4 +24,11 @@ message datanodeData{
 
 message status{
     string statusMessage = 1;
+}
+message fileData{
+    string fileName = 1;
+}
+message datanodeBlockData{
+    string datanodeID = 1;
+    repeated string blocks = 2;
 }
