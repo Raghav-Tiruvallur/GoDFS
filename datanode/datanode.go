@@ -2,6 +2,7 @@ package datanode
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -87,6 +88,18 @@ func (datanode *DataNode) SendBlockReportToNameNode(conn *grpc.ClientConn) {
 	}
 
 }
+
+func (datanode *DataNode) ReadBytesFromDataNode(ctx context.Context, blockRequest *datanodeService.BlockRequest) (*datanodeService.ByteResponse, error) {
+
+	blockID := blockRequest.BlockID
+	blockDirectory := fmt.Sprintf("./datanode-files/%s", datanode.ID)
+	filePath := filepath.Join(blockDirectory, blockID+".txt")
+	log.Println(filePath)
+	content, err := os.ReadFile(filePath)
+	utils.ErrorHandler(err)
+	return &datanodeService.ByteResponse{FileContent: content}, nil
+}
+
 func (datanode *DataNode) StartServer(port string) {
 	server := grpc.NewServer()
 	datanodeService.RegisterDatanodeServiceServer(server, datanode)

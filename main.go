@@ -58,9 +58,9 @@ func main() {
 		if *clientOperationPtr == "write" {
 			clientPtr.WriteFile(conn, *clientSourcePathPtr, *clientFilenamePtr)
 		}
-		// if *clientOperationPtr == "read" {
-		// 	clientPtr.ReadFile(conn, *clientReadFilenamePtr)
-		// }
+		if *clientOperationPtr == "read" {
+			clientPtr.ReadFile(conn, *clientSourcePathPtr, *clientFilenamePtr)
+		}
 
 	}
 

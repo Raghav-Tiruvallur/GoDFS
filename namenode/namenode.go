@@ -2,16 +2,19 @@ package namenode
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"sort"
 
 	namenode "github.com/Raghav-Tiruvallur/GoDFS/proto/namenode"
+	"github.com/Raghav-Tiruvallur/GoDFS/utils"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 )
 
 type DataNodeMetadata struct {
+	ID     string
 	Port   string
 	Status string
 }
@@ -34,6 +37,7 @@ func (nameNode *NameNodeData) InitializeNameNode(port string, blockSize int64) {
 	nameNode.BlockSize = blockSize
 	nameNode.DataNodeToBlockMapping = make(map[string][]string)
 	nameNode.DataNodeToMetadataMapping = make(map[string]DataNodeMetadata)
+	nameNode.FileToBlockMapping = make(map[string][]string)
 	nameNode.ReplicationFactor = 3
 	server := grpc.NewServer()
 	namenode.RegisterNamenodeServiceServer(server, nameNode)
@@ -54,7 +58,7 @@ func (nameNode *NameNodeData) Register_DataNode(ctx context.Context, datanodeDat
 	_, ok := nameNode.DataNodeToBlockMapping[datanodeData.DatanodeID]
 	if !ok {
 		nameNode.DataNodeToBlockMapping[datanodeData.DatanodeID] = make([]string, 0)
-		dnmetadata := DataNodeMetadata{Port: datanodeData.DatanodePort, Status: "Available"}
+		dnmetadata := DataNodeMetadata{ID: datanodeData.DatanodeID, Port: datanodeData.DatanodePort, Status: "Available"}
 		nameNode.DataNodeToMetadataMapping[datanodeData.DatanodeID] = dnmetadata
 		return &namenode.Status{StatusMessage: "Registered"}, nil
 	}
@@ -91,15 +95,46 @@ func (nameNode *NameNodeData) BlockReport(ctx context.Context, dataNodeBlockData
 	return &namenode.Status{StatusMessage: "Block Report Recieved"}, nil
 }
 
-// func (nameNode *NameNodeData) GetDataNodesForFile(ctx context.Context, fileData *namenode.FileData) (*namenode.FreeDataNodes, error) {
+func (nameNode *NameNodeData) FindDataNodesByBlock(blockID string) []DataNodeMetadata {
 
-// 	blocks , ok := nameNode.FileToBlockMapping[fileData.FileName]
-// 	dataNodes := make([]namenode.DatanodeData,0)
-// 	if !ok {
-// 		return nil, errors.New("File does not exist")
-// 	}
-// 	for _,block := range blocks{
-// 		dataNode = &namenode.DatanodeData{}
-// 	}
+	dataNodes := make([]DataNodeMetadata, 0)
 
-// }
+	for dataNode, blocks := range nameNode.DataNodeToBlockMapping {
+		if utils.ValueInArray(blockID, blocks) {
+			dataNodes = append(dataNodes, nameNode.DataNodeToMetadataMapping[dataNode])
+		}
+
+	}
+	return dataNodes
+}
+
+func (nameNode *NameNodeData) GetDataNodesForFile(ctx context.Context, fileData *namenode.FileData) (*namenode.BlockData, error) {
+
+	blocks, ok := nameNode.FileToBlockMapping[fileData.FileName]
+	dataNodes := make([]*namenode.BlockDataNode, 0)
+	if !ok {
+		return nil, errors.New("file does not exist")
+	}
+	for _, block := range blocks {
+		dataNodeList := nameNode.FindDataNodesByBlock(block)
+		dataNodeIDsList := make([]*namenode.DatanodeData, 0)
+		for _, datanode := range dataNodeList {
+			dataNodeIDsList = append(dataNodeIDsList, &namenode.DatanodeData{DatanodeID: datanode.ID, DatanodePort: datanode.Port})
+		}
+		blockData := &namenode.BlockDataNode{BlockID: block, DataNodeIDs: dataNodeIDsList}
+		dataNodes = append(dataNodes, blockData)
+	}
+
+	return &namenode.BlockData{BlockDataNodes: dataNodes}, nil
+
+}
+
+func (nameNode *NameNodeData) FileBlockMapping(ctx context.Context, fileBlockMetadata *namenode.FileBlockMetadata) (*namenode.Status, error) {
+
+	filePath := fileBlockMetadata.FilePath
+	blockIDs := fileBlockMetadata.BlockIDs
+
+	nameNode.FileToBlockMapping[filePath] = blockIDs
+	return &namenode.Status{StatusMessage: "Success"}, nil
+
+}
