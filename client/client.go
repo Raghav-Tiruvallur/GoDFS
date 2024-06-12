@@ -2,12 +2,15 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
+	"sync"
 
 	datanodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/datanode"
 	namenodeService "github.com/Raghav-Tiruvallur/GoDFS/proto/namenode"
@@ -25,6 +28,11 @@ type ClientData struct {
 
 type Block struct {
 	blockID string
+}
+
+type Pair[T any, V any] struct {
+	first  T
+	second V
 }
 
 func (client *ClientData) InitializeClient(nameNodePort string) {
@@ -60,38 +68,49 @@ func (client *ClientData) GetAvailableDatanodes(conn *grpc.ClientConn) (*namenod
 
 }
 
-func ThreadDone(done chan string, blockID string) {
-	done <- blockID
-}
+func ThreadDone(done chan Pair[int, string], blockID string, idx int) {
 
-func SendData(dataNodeID string, datanodePort string, done chan string, blockID string, buffer []byte, n int) {
+	done <- Pair[int, string]{first: idx, second: blockID}
+}
+func SendData(dataNodeID string, datanodePort string, done chan Pair[int, string], blockID string, buffer []byte, n int, idx int) {
 	clientDataNodeRequest := &datanodeService.ClientToDataNodeRequest{BlockID: blockID, Content: buffer[:n]}
-	defer ThreadDone(done, blockID)
 	datanodeClient := GetDataNodeStub(datanodePort)
-	log.Printf("Port = %s\n", datanodePort)
-	status, _ := datanodeClient.SendDataToDataNodes(context.Background(), clientDataNodeRequest)
-	log.Println(status.Message)
-	log.Printf("%s\n", dataNodeID)
+	_, _ = datanodeClient.SendDataToDataNodes(context.Background(), clientDataNodeRequest)
+	ThreadDone(done, blockID, idx)
+
 }
 
-func (client *ClientData) ProcessData(conn *grpc.ClientConn, blockSize int, done chan string, filePath string) {
+func (client *ClientData) ProcessData(conn *grpc.ClientConn, blockSize int, done chan Pair[int, string], filePath string, start int, idx int) {
 
 	blockID := uuid.New().String()
-	buffer := make([]byte, blockSize)
 
 	fileHandler, err := os.Open(filePath)
 
 	utils.ErrorHandler(err)
-	n, err := fileHandler.Read(buffer)
+	fileInfo, err := fileHandler.Stat()
+	fileSize := fileInfo.Size()
+	end := start + blockSize
+	if end > int(fileSize) {
+		end = int(fileSize)
+	}
+	readBytes := end - start
+	buffer := make([]byte, readBytes)
+	n, err := fileHandler.ReadAt(buffer, int64(start))
 	if err == io.EOF {
 		return
 	}
 	utils.ErrorHandler(err)
 	freeDataNodes, err := client.GetAvailableDatanodes(conn)
 	utils.ErrorHandler(err)
+	var wg sync.WaitGroup
 	for _, datanode := range freeDataNodes.DataNodeIDs {
-		go SendData(datanode.DatanodeID, datanode.DatanodePort, done, blockID, buffer, n)
+		wg.Add(1)
+		go func(datanode *namenodeService.DatanodeData) {
+			defer wg.Done()
+			SendData(datanode.DatanodeID, datanode.DatanodePort, done, blockID, buffer, n, idx)
+		}(datanode)
 	}
+	wg.Wait()
 }
 
 func (client *ClientData) SendFileBlockMappingToNameNode(filePath string, blockIDs []string) {
@@ -119,16 +138,47 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 	if fileSize%blockSize > 0 {
 		numberOfBlocks++
 	}
-	done := make(chan string)
-	defer close(done)
-	for i := 0; i < numberOfBlocks; i++ {
-		go client.ProcessData(conn, blockSize, done, filePath)
+
+	var wg sync.WaitGroup
+
+	done := make(chan Pair[int, string])
+	startList := make([]int64, 0)
+
+	amount := 0
+
+	for {
+		if amount > fileSize {
+			break
+		}
+		startList = append(startList, int64(amount))
+		amount += blockSize
+
 	}
-	blockIDs := make([]string, 0)
 	for i := 0; i < numberOfBlocks; i++ {
-		blockIDs = append(blockIDs, <-done)
+		wg.Add(1)
+		go func(start int, idx int) {
+			defer wg.Done()
+			client.ProcessData(conn, blockSize, done, filePath, start, idx)
+		}(int(startList[i]), i)
+	}
+	wg.Wait()
+	sortedblockIDs := make([]Pair[int, string], 0)
+	for i := 0; i < numberOfBlocks; i++ {
+		sortedblockIDs = append(sortedblockIDs, <-done)
+	}
+	for _, block := range sortedblockIDs {
+		fmt.Printf("Before = %d\n", block.first)
+	}
+	sort.Slice(sortedblockIDs, func(i, j int) bool {
+		return sortedblockIDs[i].first < sortedblockIDs[j].first
+	})
+	blockIDs := make([]string, 0)
+	for _, block := range sortedblockIDs {
+		fmt.Printf("After = %d\n", block.first)
+		blockIDs = append(blockIDs, block.second)
 	}
 	client.SendFileBlockMappingToNameNode(filePath, blockIDs)
+	close(done)
 
 }
 
@@ -143,12 +193,9 @@ func (client *ClientData) ReadFile(conn *grpc.ClientConn, source string, fileNam
 	dataNodesBlocks := dataNodes.BlockDataNodes
 	for _, blockDataNode := range dataNodesBlocks {
 		blockID := blockDataNode.BlockID
-		log.Println(blockID)
 		dataNodeIDs := blockDataNode.DataNodeIDs
-		log.Println(len(dataNodeIDs))
 		dataNodeIdx := rand.Intn(len(dataNodeIDs))
 		dataNode := dataNodeIDs[dataNodeIdx]
-		log.Println(dataNode.DatanodePort)
 		dataNodeClient := GetDataNodeStub(dataNode.DatanodePort)
 		blockRequest := &datanodeService.BlockRequest{BlockID: blockID}
 		blockResponse, err := dataNodeClient.ReadBytesFromDataNode(context.Background(), blockRequest)
