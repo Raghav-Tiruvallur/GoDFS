@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+package proto;
+
+
+service DatanodeService{
+    rpc sendDataToDataNodes(clientToDataNodeRequest) returns (Status);
+    rpc ReadBytesFromDataNode(blockRequest) returns (byteResponse);
+}
+
+message clientToDataNodeRequest{
+    string blockID = 1;
+    bytes content = 2;
+}
+
+message Status{
+    string Message = 1;
+}
+message blockRequest{
+    string blockID = 1;
+}
+message byteResponse{
+    bytes fileContent = 1;
+}

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+import "google/protobuf/empty.proto";
+
+package proto;
+
+service NamenodeService{
+    rpc getAvailableDatanodes (google.protobuf.Empty) returns (freeDataNodes);
+    rpc register_DataNode(datanodeData) returns (status);
+    rpc getDataNodesForFile (fileData) returns (blockData);
+    rpc BlockReport (datanodeBlockData) returns (status);
+    rpc FileBlockMapping (fileBlockMetadata) returns (status);
+}
+
+message freeDataNodes{
+    repeated datanodeData dataNodeIDs = 1;
+}
+
+message datanodeData{
+    string datanodeID = 1;
+    string datanodePort = 2;
+}
+
+message blockData{
+    repeated blockDataNode blockDataNodes = 1;
+}
+
+message fileBlockMetadata{
+    string filePath = 1;
+    repeated string blockIDs= 2;
+}
+
+message blockDataNode{
+    string blockID = 1;
+    repeated datanodeData DataNodeIDs = 2;
+}
+
+message status{
+    string statusMessage = 1;
+}
+message fileData{
+    string fileName = 1;
+}
+message datanodeBlockData{
+    string datanodeID = 1;
+    repeated string blocks = 2;
+}
