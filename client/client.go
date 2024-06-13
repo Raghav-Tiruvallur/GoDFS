@@ -102,15 +102,15 @@ func (client *ClientData) ProcessData(conn *grpc.ClientConn, blockSize int, done
 	utils.ErrorHandler(err)
 	freeDataNodes, err := client.GetAvailableDatanodes(conn)
 	utils.ErrorHandler(err)
-	var wg sync.WaitGroup
+	wg2 := &sync.WaitGroup{}
 	for _, datanode := range freeDataNodes.DataNodeIDs {
-		wg.Add(1)
+		wg2.Add(1)
 		go func(datanode *namenodeService.DatanodeData) {
-			defer wg.Done()
+			defer wg2.Done()
 			SendData(datanode.DatanodeID, datanode.DatanodePort, done, blockID, buffer, n, idx)
 		}(datanode)
 	}
-	wg.Wait()
+	wg2.Wait()
 }
 
 func (client *ClientData) SendFileBlockMappingToNameNode(filePath string, blockIDs []string) {
@@ -139,8 +139,6 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 		numberOfBlocks++
 	}
 
-	var wg sync.WaitGroup
-
 	done := make(chan Pair[int, string])
 	startList := make([]int64, 0)
 
@@ -154,14 +152,19 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 		amount += blockSize
 
 	}
+	wg1 := &sync.WaitGroup{}
 	for i := 0; i < numberOfBlocks; i++ {
-		wg.Add(1)
+		wg1.Add(1)
 		go func(start int, idx int) {
-			defer wg.Done()
+			defer wg1.Done()
 			client.ProcessData(conn, blockSize, done, filePath, start, idx)
 		}(int(startList[i]), i)
 	}
-	wg.Wait()
+	go func() {
+		wg1.Wait()
+		close(done)
+	}()
+
 	sortedblockIDs := make([]Pair[int, string], 0)
 	for i := 0; i < numberOfBlocks; i++ {
 		sortedblockIDs = append(sortedblockIDs, <-done)
@@ -178,7 +181,6 @@ func (client *ClientData) WriteFile(conn *grpc.ClientConn, sourcePath string, fi
 		blockIDs = append(blockIDs, block.second)
 	}
 	client.SendFileBlockMappingToNameNode(filePath, blockIDs)
-	close(done)
 
 }
 
