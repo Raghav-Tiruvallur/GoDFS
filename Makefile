@@ -6,7 +6,7 @@ GOTEST=$(GOCMD) test
 BINARY_NAME=go-dfs
 
 build:
-	$(GOCMD) -o $(BINARY_NAME) -v main.go
+	$(GOBUILD) -o $(BINARY_NAME) -v main.go
 
 run:
 	$(GOBUILD) -o $(BINARY_NAME) -v main.go
